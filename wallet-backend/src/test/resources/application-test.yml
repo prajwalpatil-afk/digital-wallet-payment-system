@@ -1,0 +1,27 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:wallet_test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+app:
+  cors:
+    front-end-url: http://localhost:5173
+
+security:
+  jwt:
+    secret: test-secret-must-be-at-least-32-characters-long
+    access-ttl-seconds: 3600
+    issuer: wallet-backend
+
+razorpay:
+  key-id: rzp_test_dummy
+  key-secret: dummy_secret_for_local_hmac_testing_only
