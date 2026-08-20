@@ -21,6 +21,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final WalletService walletService;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -38,6 +39,7 @@ public class AuthService {
                 .build();
 
         User saved = userRepository.save(user);
+        walletService.createWalletForUser(saved);
         return toAuthResponse(saved);
     }
 
