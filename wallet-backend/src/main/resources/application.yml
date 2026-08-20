@@ -16,3 +16,13 @@ spring:
 
 server:
   port: 8080
+
+app:
+  cors:
+    front-end-url: ${FRONTEND_URL:http://localhost:5173}
+
+security:
+  jwt:
+    secret: ${JWT_SECRET}
+    access-ttl-seconds: ${JWT_ACCESS_TTL_SECONDS:3600}
+    issuer: wallet-backend
