@@ -1,6 +1,9 @@
 package com.wallet.controller;
 
+import com.wallet.dto.CreateOrderRequest;
+import com.wallet.dto.CreateOrderResponse;
 import com.wallet.dto.TransferRequest;
+import com.wallet.dto.VerifyPaymentRequest;
 import com.wallet.dto.WalletResponse;
 import com.wallet.dto.WithdrawRequest;
 import com.wallet.service.WalletService;
@@ -43,5 +46,21 @@ public class WalletController {
                 request.recipientEmail(),
                 request.amount()
         );
+    }
+
+    @PostMapping("/add-money/order")
+    public CreateOrderResponse createAddMoneyOrder(
+            @Valid @RequestBody CreateOrderRequest request,
+            Authentication authentication
+    ) {
+        return walletService.createAddMoneyOrder(authentication.getName(), request.amount());
+    }
+
+    @PostMapping("/add-money/verify")
+    public WalletResponse verifyAddMoney(
+            @Valid @RequestBody VerifyPaymentRequest request,
+            Authentication authentication
+    ) {
+        return walletService.verifyAddMoney(authentication.getName(), request);
     }
 }

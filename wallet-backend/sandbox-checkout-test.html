@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Phase 5 Razorpay Sandbox Test</title>
+  <script src="https://checkout.razorpay.com/v1/razorpay.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+    pre { background: #f4f4f4; padding: 1rem; overflow: auto; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Phase 5 — Razorpay UPI Sandbox</h1>
+  <p>Order: <code id="orderId"></code> · Amount: ₹500 · VPA: <code>success@razorpay</code></p>
+  <button id="payBtn">Pay ₹500 via UPI (test)</button>
+  <h2>Payment result</h2>
+  <pre id="paymentResult">Waiting…</pre>
+  <h2>Backend verify result</h2>
+  <pre id="verifyResult">Not called yet</pre>
+  <script>
+    const CONFIG = {
+      key: "rzp_test_TRylzsz8ErnK5b",
+      orderId: "order_TRz6vnc1gPFaOH",
+      amountPaise: 50000,
+      token: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMiIsImlzcyI6IndhbGxldC1iYWNrZW5kIiwiaWF0IjoxNzg3MjIwMzAzLCJleHAiOjE3ODcyMjM5MDMsImVtYWlsIjoidGVzdEBleGFtcGxlLmNvbSIsInJvbGVzIjpbIlVTRVIiXX0.yIKmJCznxzEBRn__6mq1C5StlWqxW5iYm-IhA05bW5w"
+    };
+
+    document.getElementById("orderId").textContent = CONFIG.orderId;
+    const razorpay = new Razorpay({ key: CONFIG.key });
+
+    async function verifyOnBackend(response) {
+      const res = await fetch("http://localhost:8080/api/wallet/add-money/verify", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + CONFIG.token
+        },
+        body: JSON.stringify({
+          razorpayOrderId: response.razorpay_order_id,
+          razorpayPaymentId: response.razorpay_payment_id,
+          razorpaySignature: response.razorpay_signature
+        })
+      });
+      const body = await res.text();
+      document.getElementById("verifyResult").textContent = res.status + "\n" + body;
+      return { status: res.status, body };
+    }
+
+    function payWithUpi() {
+      document.getElementById("paymentResult").textContent = "Submitting UPI payment (success@razorpay)…";
+
+      razorpay.on("payment.success", async function (resp) {
+        document.getElementById("paymentResult").textContent = JSON.stringify(resp, null, 2);
+        window.__razorpayPayment = resp;
+        try {
+          await verifyOnBackend(resp);
+        } catch (e) {
+          document.getElementById("verifyResult").textContent = "Verify call failed: " + e.message;
+        }
+      });
+
+      razorpay.on("payment.error", function (resp) {
+        document.getElementById("paymentResult").textContent = JSON.stringify(resp, null, 2);
+      });
+
+      razorpay.createPayment({
+        amount: CONFIG.amountPaise,
+        currency: "INR",
+        email: "test@example.com",
+        contact: "9999999999",
+        order_id: CONFIG.orderId,
+        method: "upi",
+        vpa: "success@razorpay"
+      });
+    }
+
+    document.getElementById("payBtn").addEventListener("click", payWithUpi);
+    window.payWithUpi = payWithUpi;
+  </script>
+</body>
+</html>

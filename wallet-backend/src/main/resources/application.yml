@@ -26,3 +26,7 @@ security:
     secret: ${JWT_SECRET}
     access-ttl-seconds: ${JWT_ACCESS_TTL_SECONDS:3600}
     issuer: wallet-backend
+
+razorpay:
+  key-id: ${RAZORPAY_KEY_ID}
+  key-secret: ${RAZORPAY_KEY_SECRET}

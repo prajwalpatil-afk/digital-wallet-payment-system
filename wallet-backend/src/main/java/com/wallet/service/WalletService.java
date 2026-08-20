@@ -1,11 +1,15 @@
 package com.wallet.service;
 
+import com.razorpay.Order;
+import com.wallet.dto.CreateOrderResponse;
+import com.wallet.dto.VerifyPaymentRequest;
 import com.wallet.dto.WalletResponse;
-import com.wallet.entity.User;
-import com.wallet.entity.Wallet;
 import com.wallet.entity.TransactionStatus;
 import com.wallet.entity.TransactionType;
+import com.wallet.entity.User;
+import com.wallet.entity.Wallet;
 import com.wallet.exception.ApiException;
+import com.wallet.repository.TransactionRepository;
 import com.wallet.repository.UserRepository;
 import com.wallet.repository.WalletRepository;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +27,8 @@ public class WalletService {
     private final WalletRepository walletRepository;
     private final UserRepository userRepository;
     private final TransactionService transactionService;
+    private final TransactionRepository transactionRepository;
+    private final RazorpayService razorpayService;
 
     @Transactional
     public Wallet createWalletForUser(User user) {
@@ -124,6 +131,75 @@ public class WalletService {
         );
 
         return WalletResponse.from(debited);
+    }
+
+    /**
+     * Creates a Razorpay order only — no transaction row yet (outcome unknown).
+     */
+    @Transactional(readOnly = true)
+    public CreateOrderResponse createAddMoneyOrder(String email, BigDecimal amount) {
+        validatePositiveAmount(amount);
+        BigDecimal scaled = amount.setScale(2, RoundingMode.HALF_UP);
+
+        User user = userRepository.findByEmail(normalizeEmail(email))
+                .orElseThrow(() -> new ApiException("User not found", HttpStatus.NOT_FOUND));
+        Wallet wallet = walletRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new ApiException("Wallet not found", HttpStatus.NOT_FOUND));
+
+        String receipt = "wallet_" + wallet.getId() + "_" + System.currentTimeMillis();
+        Order order = razorpayService.createOrder(scaled, receipt, user.getId());
+        String orderId = order.get("id");
+
+        return new CreateOrderResponse(
+                orderId,
+                razorpayService.getKeyId(),
+                scaled,
+                "INR"
+        );
+    }
+
+    /**
+     * Verifies Razorpay signature, then credits wallet. First (and only) place a DEPOSIT row is written.
+     */
+    @Transactional
+    public WalletResponse verifyAddMoney(String email, VerifyPaymentRequest request) {
+        Wallet wallet = requireWalletByUserEmail(email);
+
+        if (transactionRepository.existsByReferenceId(request.razorpayPaymentId())) {
+            throw new ApiException("Payment already processed", HttpStatus.CONFLICT);
+        }
+
+        Order order = razorpayService.fetchOrder(request.razorpayOrderId());
+        BigDecimal amount = razorpayService.amountRupeesFromOrder(order);
+
+        boolean valid = razorpayService.verifySignature(
+                request.razorpayOrderId(),
+                request.razorpayPaymentId(),
+                request.razorpaySignature()
+        );
+
+        if (!valid) {
+            transactionService.recordFailedDeposit(
+                    wallet.getId(),
+                    amount,
+                    request.razorpayPaymentId(),
+                    "Invalid Razorpay signature for order " + request.razorpayOrderId()
+            );
+            throw new ApiException("Invalid payment signature", HttpStatus.BAD_REQUEST);
+        }
+
+        Wallet updated = adjustBalance(wallet.getId(), amount);
+        transactionService.recordTransaction(
+                updated,
+                TransactionType.DEPOSIT,
+                amount,
+                TransactionStatus.SUCCESS,
+                null,
+                request.razorpayPaymentId(),
+                "Razorpay deposit " + request.razorpayOrderId()
+        );
+
+        return WalletResponse.from(updated);
     }
 
     private Wallet requireWalletByUserEmail(String email) {
