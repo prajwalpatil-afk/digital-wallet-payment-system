@@ -2,6 +2,8 @@ package com.wallet.controller;
 
 import com.wallet.dto.CreateOrderRequest;
 import com.wallet.dto.CreateOrderResponse;
+import com.wallet.dto.DashboardResponse;
+import com.wallet.dto.TransactionResponse;
 import com.wallet.dto.TransferRequest;
 import com.wallet.dto.VerifyPaymentRequest;
 import com.wallet.dto.WalletResponse;
@@ -16,6 +18,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/wallet")
 @RequiredArgsConstructor
@@ -28,6 +32,15 @@ public class WalletController {
         return walletService.getWalletForAuthenticatedUser(authentication.getName());
     }
 
+    @GetMapping("/dashboard")
+    public DashboardResponse getDashboard(Authentication authentication) {
+        return walletService.getDashboard(authentication.getName());
+    }
+
+    @GetMapping("/transactions")
+    public List<TransactionResponse> getTransactions(Authentication authentication) {
+        return walletService.getRecentTransactions(authentication.getName());
+    }
     @PostMapping("/withdraw")
     public WalletResponse withdraw(
             @Valid @RequestBody WithdrawRequest request,

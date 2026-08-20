@@ -2,8 +2,11 @@ package com.wallet.service;
 
 import com.razorpay.Order;
 import com.wallet.dto.CreateOrderResponse;
+import com.wallet.dto.DashboardResponse;
+import com.wallet.dto.TransactionResponse;
 import com.wallet.dto.VerifyPaymentRequest;
 import com.wallet.dto.WalletResponse;
+import com.wallet.entity.Transaction;
 import com.wallet.entity.TransactionStatus;
 import com.wallet.entity.TransactionType;
 import com.wallet.entity.User;
@@ -13,16 +16,21 @@ import com.wallet.repository.TransactionRepository;
 import com.wallet.repository.UserRepository;
 import com.wallet.repository.WalletRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class WalletService {
+
+    private static final int DASHBOARD_RECENT_LIMIT = 10;
+    private static final int TRANSACTIONS_RECENT_LIMIT = 20;
 
     private final WalletRepository walletRepository;
     private final UserRepository userRepository;
@@ -46,6 +54,37 @@ public class WalletService {
     @Transactional(readOnly = true)
     public WalletResponse getWalletForAuthenticatedUser(String email) {
         return WalletResponse.from(requireWalletByUserEmail(email));
+    }
+
+    @Transactional(readOnly = true)
+    public DashboardResponse getDashboard(String email) {
+        Wallet wallet = requireWalletByUserEmail(email);
+
+        BigDecimal totalDeposited = transactionRepository.sumAmountByWalletIdAndTypeAndStatus(
+                wallet.getId(),
+                TransactionType.DEPOSIT,
+                TransactionStatus.SUCCESS
+        );
+        BigDecimal totalWithdrawn = transactionRepository.sumAmountByWalletIdAndTypeAndStatus(
+                wallet.getId(),
+                TransactionType.WITHDRAWAL,
+                TransactionStatus.SUCCESS
+        );
+
+        List<TransactionResponse> recent = findRecentTransactions(wallet.getId(), DASHBOARD_RECENT_LIMIT);
+
+        return new DashboardResponse(
+                wallet.getBalance(),
+                totalDeposited,
+                totalWithdrawn,
+                recent
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public List<TransactionResponse> getRecentTransactions(String email) {
+        Wallet wallet = requireWalletByUserEmail(email);
+        return findRecentTransactions(wallet.getId(), TRANSACTIONS_RECENT_LIMIT);
     }
 
     @Transactional
@@ -200,6 +239,14 @@ public class WalletService {
         );
 
         return WalletResponse.from(updated);
+    }
+
+    private List<TransactionResponse> findRecentTransactions(Long walletId, int limit) {
+        List<Transaction> transactions = transactionRepository.findRecentByWalletId(
+                walletId,
+                PageRequest.of(0, limit)
+        );
+        return transactions.stream().map(TransactionResponse::from).toList();
     }
 
     private Wallet requireWalletByUserEmail(String email) {
