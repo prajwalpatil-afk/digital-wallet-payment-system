@@ -97,4 +97,6 @@ public class RazorpayService {
         }
         return scaled.multiply(BigDecimal.valueOf(100)).intValueExact();
     }
+
+
 }

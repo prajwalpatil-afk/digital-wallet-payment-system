@@ -266,4 +266,6 @@ public class WalletService {
     private String normalizeEmail(String email) {
         return email.trim().toLowerCase();
     }
+
+
 }
